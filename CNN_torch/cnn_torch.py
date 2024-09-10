@@ -24,19 +24,18 @@ class CNN(nn.Module):
         super(CNN, self).__init__()
         self.conv1 = nn.Conv2d(in_channels=1, out_channels=32, kernel_size=3, stride=1, padding=1)
         self.conv2 = nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3, stride=1, padding=1)
-        self.fc1 = nn.Linear(in_features=64*7*7, out_features=128)
-        self.fc2 = nn.Linear(in_features=128, out_features=64)
-        self.fc3 = nn.Linear(in_features=64, out_features=10) 
+        self.fc1 = nn.Linear(in_features=64*7*7, out_features=32)
+        self.fc2 = nn.Linear(in_features=32, out_features=10)
+        
         self.pool = nn.MaxPool2d(kernel_size=2, stride=2, padding=0)
-        self.relu = nn.ReLU()
+        self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
-        x = self.pool(self.relu(self.conv1(x)))
-        x = self.pool(self.relu(self.conv2(x)))
+        x = self.pool((self.conv1(x)))  # 첫 번째 컨볼루션 및 풀링
+        x = self.pool((self.conv2(x)))  # 두 번째 컨볼루션 및 풀링
         x = x.view(-1, 64*7*7)  # Flatten
-        x = self.relu(self.fc1(x))  # 은닉층 1
-        x = self.relu(self.fc2(x))  # 은닉층 2
-        x = self.fc3(x)  # 출력층
+        x = self.sigmoid(self.fc1(x))  # 은닉층 1
+        x = self.sigmoid(self.fc2(x))  # 출력층 및 시그모이드 활성화
         return x
 
 # 디바이스 설정
@@ -45,23 +44,27 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # 모델, 손실 함수, 최적화 도구 설정
 model = CNN().to(device)
 criterion = nn.MSELoss()  # MSE Loss로 설정
-optimizer = optim.SGD(model.parameters(), lr=0.01)  # SGD로 설정
+optimizer = optim.SGD(model.parameters(), lr=0.02,momentum=0.9)  # SGD로 설정
 
 # 원-핫 인코딩 함수 (디바이스 인식)
 def one_hot_encode(labels, num_classes=10, device=device):
     return torch.eye(num_classes, device=device)[labels]
 
 # 학습
-num_epochs = 10
+num_epochs = 3
+0
 for epoch in range(num_epochs):
     model.train()
     total_loss = 0
     for batch_idx, (data, target) in enumerate(train_loader):
         data, target = data.to(device), target.to(device)
-        target_one_hot = one_hot_encode(target, device=device)  # 원-핫 인코딩
+        
         optimizer.zero_grad()  # 기울기 초기화
         output = model(data)  # 순전파
-        loss = criterion(output, target_one_hot)  # loss 계산
+
+        target_one_hot = one_hot_encode(target)
+
+        loss = criterion(output,  target_one_hot.to(torch.float32))  # loss 계산
         loss.backward()  # 역전파
         optimizer.step()  # 가중치 업데이트
         total_loss += loss.item()
